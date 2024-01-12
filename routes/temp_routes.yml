@@ -1,0 +1,15 @@
+--- 
+temporary_routes:
+  - source: 172.31.104.151
+    destinations:
+      - 8.8.8.8
+      - 9.9.9.0/24
+  - source: 172.31.101.151
+    destinations:
+      - 8.8.9.9
+  - source: 10.97.141.32
+    destinations:
+      - 8.8.9.9
+      - 9.9.9.9
+      - 1.1.1.0/24
+   

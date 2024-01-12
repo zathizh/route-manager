@@ -1,0 +1,66 @@
+---
+- name: playbook for generating route related commands
+  hosts: localhost
+  vars:
+    state: "{{ ( ansible_run_tags | first ) if ( ansible_run_tags | first ) != 'all' else 'add' }}"
+
+  tasks:
+
+    # calls route_handler plugin and generate routes and relevant variables
+    - name: generate commands
+      route_handler:
+        route_path: "{{ playbook_dir }}/routes/temp_routes.yml"
+        config_path: "{{ playbook_dir }}/configs/route_handler.cfg"
+        state: "{{ state }}"
+      register: routes
+      tags:
+        - always
+
+
+- name: playbook to modify routes on remote hosts
+  hosts: remoteservers
+  vars:
+    routes: "{{ hostvars['localhost']['routes'] }}"
+    state: "{{ ansible_run_tags | first }}"
+    command: "/usr/sbin/ip route | egrep '{pattern}'"
+
+  tasks:
+
+    # displays route modification command which is going to execute
+    - name: display route modification commands
+      ansible.builtin.debug:
+        msg: "{{ item.value | join('; ')}}"
+      when: item.key == inventory_hostname
+      loop: "{{ routes.route_config | dict2items }}"
+      tags: [ never, add, del ]
+
+
+    # execute route modification commands
+    - name: "{{ state }} routes"
+      ansible.builtin.shell: "{{ item.value | join('; ')}}"
+      when: item.key == inventory_hostname
+      loop: "{{ routes.route_config | dict2items }}"
+      tags: [ never, add, del ]
+      become: true
+
+
+    # collect route stats
+    - name: validate routes
+      ansible.builtin.shell: "{{ command | replace( '{pattern}', item.value ) }}"
+      when: item.key == inventory_hostname
+      loop: "{{ routes.route_status | dict2items }}"
+      tags: 
+        - always
+      failed_when: route_stats.rc > 1
+      register: route_stats
+
+
+    # display rute stats
+    - name: route status
+      debug:
+        msg: "{{ item.stdout_lines }}"
+      when: item.stdout_lines is defined
+      loop: "{{ route_stats.results }}"
+      tags:
+        - always
+
